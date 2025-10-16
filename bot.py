@@ -4,8 +4,8 @@ import time
 import discord
 
 # === KONFIG — BYT DESSA ===
-GUILD_ID = 123456789012345678        # Högerklicka servern > Copy ID (Developer Mode)
-NOTIFY_USER_ID = 123456789012345678  # Högerklicka dig själv > Copy ID
+GUILD_ID = 398246398975410198      # Högerklicka servern > Copy ID (Developer Mode)
+NOTIFY_USER_ID = 245611732788051970  # Högerklicka dig själv > Copy ID
 TARGET_GAMES = set()                 # tom set() => notifiera ALLA spel; t.ex. {"Valorant", "Minecraft"}
 THROTTLE_SECONDS = 600               # minst X sek mellan samma användare+spel-notis
 
