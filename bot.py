@@ -1,6 +1,21 @@
 import os
 import time
+import asyncio
 import discord
+from aiohttp import web
+
+# --- Liten webserver för Render hälsokoll ---
+async def health(_):
+    return web.Response(text="ok")
+
+async def run_web():
+    app = web.Application()
+    app.add_routes([web.get("/", health)])
+    port = int(os.environ.get("PORT", 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
 
 # === KONFIG ===
 GUILD_ID = 398246398975410198        # byt till din servers ID
@@ -18,7 +33,6 @@ member_cache_flags = discord.MemberCacheFlags.from_intents(intents)
 client = discord.Client(intents=intents, member_cache_flags=member_cache_flags)
 last_sent: dict[tuple[int, str], float] = {}
 
-
 def playing_games(activities):
     names = set()
     if not activities:
@@ -28,19 +42,16 @@ def playing_games(activities):
             names.add(a.name)
     return names
 
-
 @client.event
 async def on_ready():
     print(f"✅ Botten är inloggad som {client.user} ({client.user.id})")
-
     guild = client.get_guild(GUILD_ID)
     if guild:
         print(f"🔍 Lyssnar på server: {guild.name} ({guild.id})")
         print(f"👥 Antal medlemmar laddade: {len(guild.members)}")
     else:
         print("⚠️ Kunde inte hitta guild direkt — kommer ladda när event triggas.")
-
-    # === Skicka DM till ägaren när botten startar ===
+    # DM till dig när botten är uppe
     try:
         dm_target = await client.fetch_user(NOTIFY_USER_ID)
         await dm_target.send(f"✅ Din bot **{client.user.name}** är nu online och aktiv på Discord! 🚀")
@@ -48,17 +59,14 @@ async def on_ready():
     except Exception as e:
         print(f"⚠️ Kunde inte skicka startnotis-DM: {e}")
 
-
 @client.event
 async def on_presence_update(before: discord.Member, after: discord.Member):
     if after.guild is None or after.guild.id != GUILD_ID:
         return
-
     before_set = playing_games(getattr(before, "activities", []))
     after_set  = playing_games(getattr(after,  "activities", []))
     started = after_set - before_set
 
-    # Logga förändringar för debugging
     if before_set != after_set:
         print(f"🔄 Presence ändrad: {after.display_name}")
         print(f"   Före:  {before_set or '-'}")
@@ -66,7 +74,6 @@ async def on_presence_update(before: discord.Member, after: discord.Member):
 
     if not started:
         return
-
     if TARGET_GAMES:
         started = {g for g in started if g in TARGET_GAMES}
         if not started:
@@ -74,12 +81,10 @@ async def on_presence_update(before: discord.Member, after: discord.Member):
 
     now = time.time()
     dm_target = await client.fetch_user(NOTIFY_USER_ID)
-
     for game in started:
         key = (after.id, game)
         if now - last_sent.get(key, 0) < THROTTLE_SECONDS:
             continue
-
         msg = f"🟢 **{after.display_name}** startade **{game}** på _{after.guild.name}_."
         try:
             await dm_target.send(msg)
@@ -88,10 +93,12 @@ async def on_presence_update(before: discord.Member, after: discord.Member):
         except Exception as e:
             print(f"⚠️ Kunde inte skicka DM till {after.display_name}: {e}")
 
-
 # === START ===
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 if not TOKEN:
     raise SystemExit("❌ Miljövariabeln DISCORD_BOT_TOKEN saknas. Lägg till den på Render → Environment.")
 
-client.run(TOKEN)
+async def main():
+    await asyncio.gather(run_web(), client.start(TOKEN))
+
+asyncio.run(main())
